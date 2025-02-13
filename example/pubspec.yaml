@@ -10,7 +10,7 @@ description: Demonstrates how to use the install_plugin plugin.
 version: 2.1.0+3
 
 environment:
-  sdk: '>=2.19.6 <4.0.0'
+  sdk: 3.6.2
 
 dependencies:
   flutter:
