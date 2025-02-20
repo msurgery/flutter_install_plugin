@@ -1,94 +1,112 @@
-# install_plugin
+[![license](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/youxiachai/flutter_install_plugin/blob/master/LICENSE)
 
-[![Build Status](https://travis-ci.org/hui-z/flutter_install_plugin.svg?branch=master)](https://travis-ci.org/hui-z/flutter_install_plugin#)
-[![pub package](https://img.shields.io/pub/v/install_plugin.svg)](https://pub.dartlang.org/packages/install_plugin)
-[![license](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/hui-z/flutter_install_plugin/blob/master/LICENSE)
+A flutter plugin for install apk for android and open appStore on iOS.\
+Updated to Flutter v3.27.4.
 
-We use the `install_plugin` plugin to install apk for android; and using url to go to app store for iOS.
+Original plugin `InstallPlugin` by `hui-z`. Original repository: https://github.com/hui-z/flutter_install_plugin
+
+# manage_install
+
+We use the `manage_install` plugin to install apk for android; and using url to go to app store for iOS.
 
 ## Usage
 
-To use this plugin, add `install_plugin` as a dependency in your pubspec.yaml file. For example:
+To use this plugin, add `manage_install` as a dependency in your pubspec.yaml file. For example:
 ```yaml
 dependencies:
-  install_plugin: '^2.1.0'
+  manage_install: '^2.1.2'
 ```
 
 ## iOS
 Your project need create with swift.
 
 ##  Android
-You need to request permission for READ_EXTERNAL_STORAGE to read the apk file. You can handle the storage permission using [flutter_permission_handler](https://github.com/BaseflowIT/flutter-permission-handler).
+You need to request permission for `READ_EXTERNAL_STORAGE` to read the APK file. 
+You can handle the storage permission using [flutter_permission_handler](https://github.com/BaseflowIT/flutter-permission-handler).
 ```
- <!-- read permissions for external storage -->
- <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- read permissions for external storage -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 ```
-In Android version >= 8.0 , You need to request permission for REQUEST_INSTALL_PACKAGES to install the apk file
- ```
- <!-- installation package permissions -->
- <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
- ```
-In Android version <= 6.0 , You need to request permission for WRITE_EXTERNAL_STORAGE to copy the apk from the app private location to the download directory
- ```
- <!-- write permissions for external storage -->
- <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
- ```
+
+In `Android version >= 8.0`, You need to request permission for `REQUEST_INSTALL_PACKAGES` 
+to install the APK file.
+```
+    <!-- installation package permissions -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+```
+
+In `Android version <= 6.0`, You need to request permission for `WRITE_EXTERNAL_STORAGE` to copy 
+the APK from the app private location to the download directory.
+```
+    <!-- write permissions for external storage -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+```
 
 ## Example
-install apk from the internet 
+Install APK after download it from the internet. **Only on Android.**
+
 ``` dart
-  _networkInstallApk() async {
-    if (_progressValue != 0 && _progressValue < 1) {
-      _showResMsg("Wait a moment, downloading");
-      return;
+    Future<String?> _downloadApk() async {
+        Directory appDocDir = await getTemporaryDirectory();
+        String savePath = '${appDocDir.path}/example.apk';
+        String fileUrl = 'https://fake-apk/file.apk';
+        await Dio().download(fileUrl, savePath, onReceiveProgress: (count, total) { ... });
+    
+        return savePath;
     }
 
-    _progressValue = 0.0;
-    var appDocDir = await getTemporaryDirectory();
-    String savePath = appDocDir.path + "/takeaway_phone_release_1.apk";
-    String fileUrl =
-        "https://s3.cn-north-1.amazonaws.com.cn/mtab.kezaihui.com/apk/takeaway_phone_release_1.apk";
-    await Dio().download(fileUrl, savePath, onReceiveProgress: (count, total) {
-      final value = count / total;
-      if (_progressValue != value) {
-        setState(() {
-          if (_progressValue < 1.0) {
-            _progressValue = count / total;
-          } else {
-            _progressValue = 0.0;
-          }
-        });
-        print((_progressValue * 100).toStringAsFixed(0) + "%");
-      }
-    });
+    Future<void> _apkDownloadAndInstall() async {
+        String path = (await _downloadApk())!;
 
-    final res = await InstallPlugin.install(savePath);
-    _showResMsg(
-        "install apk ${res['isSuccess'] == true ? 'success' : 'fail:${res['errorMessage'] ?? ''}'}");
+        ManageInstallResult? result;
+        result = await ManageInstall.installApk(path);
+        // result = await ManageInstall.install(path);
+
+        String message = (result?.isSuccess ?? false)
+            ? 'Installation completed!'
+            : 'Installation could not be completed. Error: ${result?.message ?? 'Unknown error'}';
+
+        (...)
+    }
+```
+
+Install APK directly from the local storage. **Only on Android.**
+``` dart
+    Future<void> _apkLocalInstall({bool usePicker = false}) async {
+        late String filePath;
+        if (usePicker) {
+            FilePickerResult? filePickerResult = await FilePicker.platform.pickFiles();
+            filePath = filePickerResult?.files.single.path ?? '';
+            if (filePath.isEmpty) {
+                _showResultMessage('To start the installation, select the APK file into the file explorer.');
+            }
+
+        } else {
+          Directory appDocDir = await getTemporaryDirectory();
+          filePath = '${appDocDir.path}/example.apk';
+        }
+
+        ManageInstallResult? result = await ManageInstall.installApk(filePath);
+        // ManageInstallResult? result = await ManageInstall.install(filePath);
+
+        String message = (result?.isSuccess ?? false)
+            ? 'Installation completed!'
+            : 'Installation could not be completed. Error: ${result?.message ?? 'Unknown error'}';
+
+        (...)
   }
 ```
 
-install apk from the local storage
+Go to AppStore for update or download an app. **Only available for iOS.**
 ``` dart
-  _localInstallApk() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles();
-    if (result != null) {
-      final res = await InstallPlugin.install(result.files.single.path ?? '');
-      _showResMsg(
-          "install apk ${res['isSuccess'] == true ? 'success' : 'fail:${res['errorMessage'] ?? ''}'}");
-    } else {
-      // User canceled the picker
-      _showResMsg("User canceled the picker apk");
+    Future<void> _goToAppStore(String storeUri) async {
+        ManageInstallResult? result = await ManageInstall.goToAppStore(storeUri);
+        ManageInstallResult? result = await ManageInstall.install(storeUri);
+    
+        String message = (result?.isSuccess ?? false) 
+            ? 'AppStore opened successfully!';
+            : 'AppStore could not be opened. Error: ${result?.message ?? 'Unknown error'}';
+    
+        (...)
     }
-  }
-```
-
-Go to AppStore , example appStore url : https://itunes.apple.com/cn/app/%E5%86%8D%E6%83%A0%E5%90%88%E4%BC%99%E4%BA%BA/id1375433239?l=zh&ls=1&mt=8
-``` dart
-  _gotoAppStore(String url) async {
-    url = url.isEmpty ? _defaultUrl : url;
-    final res = await InstallPlugin.install(url);
-    _showResMsg(
-        "go to appstroe ${res['isSuccess'] == true ? 'success' : 'fail:${res['errorMessage'] ?? ''}'}");
-  }
 ```
